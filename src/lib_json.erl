@@ -7,7 +7,7 @@
 
 -export([encode/1, decode/1]).
 
-%% @doc 生成Jason
+%% @doc 生成Json
 encode(L) ->
 	case encode_value(L) of
 		square_bracket ->
@@ -74,7 +74,7 @@ encode_string(S) when is_list(S) ->
 encode_string(S) ->
 	["\"", util:to_list(S), "\""].
 
-%% @doc 解析Jason
+%% @doc 解析Json
 decode(<<>>) ->
 	[];
 decode(Bin) when is_binary(Bin) ->
