@@ -12,3 +12,5 @@ _*
 erl_crash.dump
 .rebar
 /logs
+/tmp
+rebar3.crashdump

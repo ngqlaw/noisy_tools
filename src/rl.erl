@@ -1,6 +1,6 @@
 %%%-------------------------------------------------------------------
 %%% @author ngq <ngq_scut@126.com>
-%%% @copyright (C) 2016, JiZe Technologies, Inc.  All Rights Reserved.
+%%% @copyright (C) 2016, ngq <ngq_scut@126.com>.
 %%% @doc
 %%% 热更新模块
 %%%

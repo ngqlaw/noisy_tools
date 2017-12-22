@@ -10,20 +10,20 @@
 %% @doc 生成Json
 encode(L) ->
 	case encode_value(L) of
-		square_bracket ->
-			encode_square_bracket(L, []);
-		curly_bracket ->
-			encode_curly_bracket(L, [])
+		{square_bracket, J} ->
+			encode_square_bracket(J, []);
+		{curly_bracket, J} ->
+			encode_curly_bracket(J, [])
 	end.
 
 %% 花括号编码
 encode_curly_bracket([{K, V}|T], Res) ->
 	Key = encode_string(K),
 	case encode_value(V) of
-		square_bracket ->
-			Value = [encode_square_bracket(V, [])];
-		curly_bracket ->
-			Value = [encode_curly_bracket(V, [])];
+		{square_bracket, NewV} ->
+			Value = [encode_square_bracket(NewV, [])];
+		{curly_bracket, NewV} ->
+			Value = [encode_curly_bracket(NewV, [])];
 		Value ->
 			ok
 	end,
@@ -36,54 +36,64 @@ encode_curly_bracket([], [_|Res]) ->
 %% 方括号编码
 encode_square_bracket([V|T], Res) ->
 	case encode_value(V) of
-		square_bracket ->
-			Value = [encode_square_bracket(V, [])];
-		curly_bracket ->
-			Value = [encode_curly_bracket(V, [])];
+		{square_bracket, NewV} ->
+			Value = [encode_square_bracket(NewV, [])];
+		{curly_bracket, NewV} ->
+			Value = [encode_curly_bracket(NewV, [])];
 		Value ->
 			ok
 	end,
-	encode_square_bracket(T, Value ++ Res);
-encode_square_bracket([], Res) ->
+	encode_square_bracket(T, [","] ++ Value ++ Res);
+encode_square_bracket([], [_|Res]) ->
 	"[" ++ lists:concat(lists:reverse(Res)) ++ "]".
 
 %% 编码值
-encode_value(S) when is_integer(S) orelse is_float(S) ->
-	[util:to_list(S)];
 encode_value(false) ->
 	["false"];
 encode_value(null) ->
 	["null"];
 encode_value(true) ->
 	["true"];
+encode_value(I) when is_integer(I) ->
+	[integer_to_list(I)];
+encode_value(F) when is_float(F) ->
+	io_lib:format("~p", [F]);
+encode_value({_, _} = Tuple) ->
+	encode_string([Tuple]);		
 encode_value(S) ->
 	encode_string(S).
 
 encode_string(S) when is_list(S) ->
 	case lists:all(fun(Tuple) -> is_tuple(Tuple) end, S) of
 		true ->
-			curly_bracket;
+			{curly_bracket, S};
 		false ->
 			case lists:all(fun(I) -> is_integer(I) end, S) of
 				true ->
 					["\"", S, "\""];
 				false ->
-					square_bracket
+					{square_bracket, S}
 			end
 	end;
+encode_string(S) when is_integer(S) ->
+	["\"", integer_to_list(S), "\""];
+encode_string(S) when is_atom(S) ->
+	["\"", atom_to_list(S), "\""];
+encode_string(S) when is_binary(S) ->
+	["\"", binary_to_list(S), "\""];
 encode_string(S) ->
-	["\"", util:to_list(S), "\""].
+	["\"", lists:flatten(io_lib:format("~p", [S])), "\""].
 
 %% @doc 解析Json
 decode(<<>>) ->
 	[];
 decode(Bin) when is_binary(Bin) ->
 	B = begin_decode(Bin),
-	case decode_value(B) of
+	{Res, _} = case decode_value(B) of
 		{curly_bracket, B1} ->
-			{Res, _} = decode_curly_bracket(B1);
+			decode_curly_bracket(B1);
 		{square_bracket, B1} ->
-			{Res, _} = decode_square_bracket(B1)
+			decode_square_bracket(B1)
 	end,
 	Res;
 decode(L) when is_list(L) ->
@@ -117,9 +127,9 @@ do_decode_curly_bracket(B, Res) ->
 	end,
 	case check_curly_bracket_next(B3) of
 		{'NEXT', B4} ->
-			do_decode_curly_bracket(B4, [{util:to_list(Key), util:to_list(Value)}|Res]);
+			do_decode_curly_bracket(B4, [{Key, Value}|Res]);
 		{'END', B4} ->
-			{lists:reverse([{util:to_list(Key), util:to_list(Value)}|Res]), B4}
+			{lists:reverse([{Key, Value}|Res]), B4}
 	end.
 
 check_curly_bracket_next(<<32:8, B/binary>>) ->
@@ -152,9 +162,9 @@ do_decode_square_bracket(B, Res) ->
 	end,
 	case check_square_bracket_next(B2) of
 		{'NEXT', B3} ->
-			do_decode_square_bracket(B3, [util:to_list(Value)|Res]);
+			do_decode_square_bracket(B3, [Value|Res]);
 		{'END', B3} ->
-			{lists:reverse([util:to_list(Value)|Res]), B3}
+			{lists:reverse([Value|Res]), B3}
 	end.
 
 check_square_bracket_next(<<32:8, B/binary>>) ->
@@ -210,7 +220,7 @@ decode_string(<<"\"", B/binary>>) ->
 do_decode_string(<<"\\\"", B/binary>>, Res) ->
 	do_decode_string(B, ["\\\""|Res]);
 do_decode_string(<<"\"", B/binary>>, Res) ->
-	{util:to_binary(lists:reverse(Res)), B};
+	{list_to_binary(lists:reverse(Res)), B};
 do_decode_string(<<H:8, B/binary>>, Res) ->
 	do_decode_string(B, [H|Res]).
 
@@ -223,30 +233,14 @@ do_decode_number(<<H:8, B/binary>>, Res) when H > 47 andalso H < 58 ->
 	do_decode_number(B, [H|Res]);
 do_decode_number(<<".", B/binary>>, [H|_] = Res) when H > 47 andalso H < 58 ->
 	do_decode_number(B, [<<".">>|Res]);
-do_decode_number(<<"e-", H1:8, B/binary>>, [<<".">>, H2|_] = Res)
-	when H1 > 47 andalso H1 < 58 andalso H2 > 47 andalso H2 < 58 ->
-	do_decode_number(B, [H1, <<"e-">>|Res]);
-do_decode_number(<<"e-", H1:8, B/binary>>, [H2|_] = Res)
-	when H1 > 47 andalso H1 < 58 andalso H2 > 47 andalso H2 < 58 ->
-	do_decode_number(B, [H1, <<"e-">>|Res]);
-do_decode_number(<<"e+", H1:8, B/binary>>, [<<".">>, H2|_] = Res)
-	when H1 > 47 andalso H1 < 58 andalso H2 > 47 andalso H2 < 58 ->
-	do_decode_number(B, [H1, <<"e+">>|Res]);
-do_decode_number(<<"e+", H1:8, B/binary>>, [H2|_] = Res)
-	when H1 > 47 andalso H1 < 58 andalso H2 > 47 andalso H2 < 58 ->
-	do_decode_number(B, [H1, <<"e+">>|Res]);
-do_decode_number(<<"E-", H1:8, B/binary>>, [<<".">>, H2|_] = Res)
-	when H1 > 47 andalso H1 < 58 andalso H2 > 47 andalso H2 < 58 ->
-	do_decode_number(B, [H1, <<"E-">>|Res]);
-do_decode_number(<<"E-", H1:8, B/binary>>, [H2|_] = Res)
-	when H1 > 47 andalso H1 < 58 andalso H2 > 47 andalso H2 < 58 ->
-	do_decode_number(B, [H1, <<"E-">>|Res]);
-do_decode_number(<<"E+", H1:8, B/binary>>, [<<".">>, H2|_] = Res)
-	when H1 > 47 andalso H1 < 58 andalso H2 > 47 andalso H2 < 58 ->
-	do_decode_number(B, [H1, <<"E+">>|Res]);
-do_decode_number(<<"E+", H1:8, B/binary>>, [H2|_] = Res)
-	when H1 > 47 andalso H1 < 58 andalso H2 > 47 andalso H2 < 58 ->
-	do_decode_number(B, [H1, <<"E+">>|Res]);
+do_decode_number(<<"e", B/binary>>, Res) ->
+	do_decode_number(B, [<<"e">>|Res]);
+do_decode_number(<<"E", B/binary>>, Res) ->
+	do_decode_number(B, [<<"E">>|Res]);
+do_decode_number(<<"+", B/binary>>, Res) ->
+	do_decode_number(B, [<<"+">>|Res]);
+do_decode_number(<<"-", B/binary>>, Res) ->
+	do_decode_number(B, [<<"-">>|Res]);	
 do_decode_number(<<32:8, B/binary>>, Res) ->
 	do_decode_number(B, Res);
 do_decode_number(<<9:8, B/binary>>, Res) ->
@@ -256,4 +250,9 @@ do_decode_number(<<10:8, B/binary>>, Res) ->
 do_decode_number(<<13:8, B/binary>>, Res) ->
 	do_decode_number(B, Res);
 do_decode_number(B, Res) ->
-	{util:to_binary(lists:reverse(Res)), B}.
+	Val = list_to_binary(lists:reverse(Res)),
+	Num = case catch binary_to_integer(Val) of
+	  Integer when is_integer(Integer) -> Integer;
+	  _ -> binary_to_float(Val)
+	end,
+	{Num, B}.

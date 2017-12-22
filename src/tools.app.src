@@ -1,5 +1,5 @@
 {application, tools,
- [{description, "工具函数"},
+ [{description, "tool library"},
   {vsn, "1.0"},
   {registered, []},
   {applications,
