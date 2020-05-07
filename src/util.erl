@@ -45,7 +45,7 @@
 
 %% @doc 时间戳(秒)
 unixtime() ->
-    erlang:system_time(second).
+    erlang:system_time(1).
 
 unixtime(DateTime) ->
     [DT] = calendar:local_time_to_universal_time_dst(DateTime),
@@ -53,7 +53,7 @@ unixtime(DateTime) ->
 
 %% @doc 时间戳(毫秒)
 longunixtime() ->
-    erlang:system_time(millisecond).
+    erlang:system_time(1000).
 
 %% @doc 当天零点时间戳
 zero_unixtime() ->

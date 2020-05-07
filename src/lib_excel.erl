@@ -8,22 +8,8 @@
 
 -export([open/1, open_content/1]).
 
+-include("excel.hrl").
 -include_lib("xmerl/include/xmerl.hrl").
-
-%% Excel对象
--record(excel, {
-    sheets = []
-}).
-
-%% 页
--record(excel_sheet, {
-    id = 0,
-    name = "",
-    content = []
-}).
-
-%% 单元格
--record(excel_cell, {r, c, v}).
 
 open(File) ->
     {ok, ContentBin} = file:read_file(File),
@@ -45,7 +31,7 @@ open_content(Content) ->
     {ok, StringTable} = new_excel_string_table(SharedStringXML),
 
     % load sheets data
-    {ok, #excel{sheets = lists:foldr(
+    {ok, lists:foldr(
     fun(SheetInfo = #excel_sheet{id = SheetId}, AccIn) ->
         SheetDataFile = lists:concat(["xl/worksheets/sheet", SheetId, ".xml"]),
         case proplists:get_value(SheetDataFile, ExcelData) of
@@ -56,7 +42,7 @@ open_content(Content) ->
                 Rows = [new_excel_row(RowXML, StringTable) || RowXML<-RowsXML],
                 [SheetInfo#excel_sheet{content = lists:append(Rows)}|AccIn]
         end
-    end, [], SheetInfos)}}.
+    end, [], SheetInfos)}.
 
 new_excel_string_table(SharedStringXML) ->
     new_excel_string_table(SharedStringXML, dict:new(), 0).
@@ -76,8 +62,11 @@ new_excel_row(#xmlElement{content = CellsXML}, StringTable) ->
 
 new_excel_cell(#xmlElement{
         attributes = Attrs,
-        content = [#xmlElement{content = [#xmlText{parents = CellInfo, value = V}]}]
+        content = Content
     }, StringTable) ->
+    {value, #xmlElement{
+        content = [#xmlText{parents = CellInfo, value = V}]
+    }} = lists:keysearch(v, #xmlElement.name, Content),
     Row = proplists:get_value(row, CellInfo),
     Cell = proplists:get_value(c, CellInfo),
     Value =

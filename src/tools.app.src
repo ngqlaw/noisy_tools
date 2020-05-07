@@ -1,15 +1,15 @@
-{application, tools,
- [{description, "tool library"},
-  {vsn, "1.0"},
-  {registered, []},
-  {applications,
-   [kernel,
-    stdlib
-   ]},
-  {env,[]},
-  {modules, []},
+{application, tools, [
+    {description, "tool library"},
+    {vsn, "1.0.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {env,[]},
+    {modules, []},
 
-  {maintainers, []},
-  {licenses, []},
-  {links, []}
- ]}.
+    {maintainers, []},
+    {licenses, []},
+    {links, []}
+]}.
