@@ -13,4 +13,19 @@
 -define(TERM(V),            util:to_term(V)).
 -define(BINARY(V),          util:to_binary(V)).
 
+-ifndef(DEBUG).
+-define(DEBUG(Format), error_logger:info_msg(Format)).
+-define(DEBUG(Format, Data), error_logger:info_msg(Format, Data)).
+-endif.
+
+-ifndef(INFO).
+-define(INFO(Format), error_logger:info_msg(Format)).
+-define(INFO(Format, Data), error_logger:info_msg(Format, Data)).
+-endif.
+
+-ifndef(ERROR).
+-define(ERROR(Format), error_logger:error_msg(Format)).
+-define(ERROR(Format, Data), error_logger:error_msg(Format, Data)).
+-endif.
+
 -endif.

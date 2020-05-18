@@ -11,12 +11,38 @@
 -author("ngq").
 
 %% API
--export([u/0, u/1]).
+-export([
+    load_from_source_bin/1,
+    find_ebin_by_dir/1,
+    get_beam_file/1,
+    u/0, u/1
+]).
 
+%% 根据erl文件内容加载模块
+load_from_source_bin(String) ->
+    {ok, Tokens, _} = erl_scan:string(String),
+    TokensList = split_tokens_by_dot(Tokens, [], []),
+    AbsForms = [begin
+        {ok, AbsForm} = erl_parse:parse_form(Ts),
+        AbsForm
+    end || Ts <- TokensList],
+    {ok, DataModule, Binary} = compile:forms(AbsForms),
+    code:load_binary(DataModule, cover_compiled, Binary).
+
+split_tokens_by_dot([{dot, _} = Dot|T], Temp, Res) ->
+    split_tokens_by_dot(T, [], [lists:reverse([Dot|Temp])|Res]);
+split_tokens_by_dot([H|T], Temp, Res) ->
+    split_tokens_by_dot(T, [H|Temp], Res);
+split_tokens_by_dot([], _, Res) ->
+    lists:reverse(Res).
+
+
+%% 更新所有修改的beam文件
 u() ->
+    {ok, Path} = file:get_cwd(),
+    CodePaths = find_ebin_by_dir(Path),
+    All = get_beam_file(CodePaths, []),
     L = code:all_loaded(),
-    CodePaths = lists:delete(".", code:get_path()),
-    All = get_all_beam_file(CodePaths, []),
     do(All, L, []).
 
 do([{Module, Path}|T], L, Res) ->
@@ -78,33 +104,72 @@ ok_reload([_|_] = L, Res) ->
 ok_reload([], Res) ->
     Res.
 
+
+%% 查询目录下所以ebin文件夹
+find_ebin_by_dir(Dirs) ->
+    find_ebin_by_dir(Dirs, []).
+
+find_ebin_by_dir([Dir|T], Res) ->
+    case file:list_dir(Dir) of
+        {ok, L} ->
+            NewRes = do_find_ebin_by_dir(L, Dir, Res),
+            find_ebin_by_dir(T, NewRes);
+        _E ->
+            find_ebin_by_dir(T, Res)
+    end;
+find_ebin_by_dir([], Res) ->
+    Res.
+
+do_find_ebin_by_dir(["ebin"|T], Dir, Res) ->
+    SubDir = filename:join([Dir, "ebin"]),
+    case filelib:is_dir(SubDir) of
+        true ->
+            do_find_ebin_by_dir(T, Dir, [SubDir|Res]);
+        false ->
+            do_find_ebin_by_dir(T, Dir, Res)
+    end;
+do_find_ebin_by_dir([H|T], Dir, Res) ->
+    SubDir = filename:join([Dir, H]),
+    case filelib:is_dir(SubDir) of
+        true ->
+            NewRes = find_ebin_by_dir([SubDir], Res),
+            do_find_ebin_by_dir(T, Dir, NewRes);
+        false ->
+            do_find_ebin_by_dir(T, Dir, Res)
+    end;
+do_find_ebin_by_dir([], _Dir, Res) ->
+    Res.
+
 %% 查询目录下所有beam文件
-get_all_beam_file([H|T], Res) ->
+get_beam_file(Paths) ->
+    get_beam_file(Paths, []).
+
+get_beam_file([H|T], Res) ->
     case file:list_dir(H) of
         {ok, L} ->
-            NewRes = get_beam_file(L, H, Res),
-            get_all_beam_file(T, NewRes);
+            NewRes = do_get_beam_file(L, H, Res),
+            get_beam_file(T, NewRes);
         _E ->
-            get_all_beam_file(T, Res)
+            get_beam_file(T, Res)
     end;
-get_all_beam_file([], Res) ->
+get_beam_file([], Res) ->
     lists:usort(Res).
 
-get_beam_file([H|T], Dir, Res) ->
+do_get_beam_file([H|T], Dir, Res) ->
     case filename:extension(H) == ".beam" of
         true ->
             Module = list_to_atom(filename:basename(H, ".beam")),
             Path = filename:join([Dir, H]),
-            get_beam_file(T, Dir, [{Module, Path}|Res]);
+            do_get_beam_file(T, Dir, [{Module, Path}|Res]);
         false ->
             SubDir = filename:join([Dir, H]),
             case filelib:is_dir(SubDir) of
                 true ->
-                    NewRes = get_all_beam_file([SubDir], Res),
-                    get_beam_file(T, Dir, NewRes);
+                    NewRes = get_beam_file([SubDir], Res),
+                    do_get_beam_file(T, Dir, NewRes);
                 false ->
-                    get_beam_file(T, Dir, Res)
+                    do_get_beam_file(T, Dir, Res)
             end
     end;
-get_beam_file([], _Dir, Res) ->
+do_get_beam_file([], _Dir, Res) ->
     Res.
