@@ -1,6 +1,6 @@
-{application, tools, [
+{application, noisy_tools, [
     {description, "tool library"},
-    {vsn, "1.1.0"},
+    {vsn, "1.2.0"},
     {registered, []},
     {applications, [
         kernel,
