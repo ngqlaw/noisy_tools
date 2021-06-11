@@ -18,9 +18,9 @@ encode(L) ->
     end.
 
 %% 花括号编码
-encode_curly_bracket([{K, V}|T], Res) ->
+encode_curly_bracket([{K, V}|T], Res0) ->
     Key = encode_string(K),
-    Res = case encode_value(V) of
+    Res1 = case encode_value(V) of
         {square_bracket, NewV} ->
             [encode_square_bracket(NewV, [])];
         {curly_bracket, NewV} ->
@@ -28,7 +28,7 @@ encode_curly_bracket([{K, V}|T], Res) ->
         Value ->
             Value
     end,
-    encode_curly_bracket(T, [","] ++ Res ++ [":"] ++ Key ++ Res);
+    encode_curly_bracket(T, [","] ++ Res1 ++ [":"] ++ Key ++ Res0);
 encode_curly_bracket([], []) ->
     "{}";
 encode_curly_bracket([], [_|Res]) ->
